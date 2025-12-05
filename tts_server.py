@@ -26,6 +26,19 @@ def generate_speech(text: str, output_path: str):
     """Sync wrapper for generate_speech_async"""
     asyncio.run(generate_speech_async(text, output_path))
 
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint - API info"""
+    return jsonify({
+        'service': 'Agrimater TTS Server',
+        'status': 'running',
+        'voice': VOICE,
+        'endpoints': {
+            'health': '/health',
+            'tts': '/api/tts (POST)'
+        }
+    })
+
 @app.route('/api/tts', methods=['POST'])
 def text_to_speech():
     try:
@@ -60,7 +73,12 @@ def text_to_speech():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'tts': 'edge-tts', 'voice': VOICE})
+    return jsonify({
+        'status': 'healthy',
+        'service': 'TTS Server',
+        'tts': 'edge-tts',
+        'voice': VOICE
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
