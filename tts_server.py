@@ -9,11 +9,7 @@ import os
 import tempfile
 import edge_tts
 import asyncio
-import nest_asyncio
 import time
-
-# Allow nested event loops (fixes issues in production environments)
-nest_asyncio.apply()
 
 app = Flask(__name__)
 CORS(app)
@@ -33,22 +29,13 @@ async def generate_speech_async(text: str, output_path: str):
         raise
 
 def generate_speech(text: str, output_path: str):
-    """Sync wrapper for generate_speech_async"""
+    """Sync wrapper for generate_speech_async - always creates new event loop"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        # Use asyncio.run which handles event loop creation/cleanup
-        asyncio.run(generate_speech_async(text, output_path))
-    except RuntimeError as e:
-        # Fallback for environments with existing event loops
-        print(f"RuntimeError, trying alternative approach: {e}")
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(generate_speech_async(text, output_path))
-        finally:
-            loop.close()
-    except Exception as e:
-        print(f"Error generating speech: {e}")
-        raise
+        loop.run_until_complete(generate_speech_async(text, output_path))
+    finally:
+        loop.close()
 
 @app.route('/', methods=['GET'])
 def index():
