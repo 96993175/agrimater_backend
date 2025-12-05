@@ -66,56 +66,81 @@ def index():
 def text_to_speech():
     output_path = None
     try:
+        # Get request data
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+            
         text = data.get('text', '')
         
         if not text:
             return jsonify({'error': 'Text is required'}), 400
         
-        print(f"Generating TTS for: {text[:50]}...")  # Log for debugging
+        print(f"[TTS] Received request for text: {text[:50]}...")
         
-        # Create temporary file for audio
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
-        output_path = temp_file.name
-        temp_file.close()
+        # Create temporary file for audio in /tmp (Render compatible)
+        temp_dir = tempfile.gettempdir()
+        output_path = os.path.join(temp_dir, f"tts_{os.getpid()}_{int(asyncio.get_event_loop().time() * 1000)}.mp3")
+        
+        print(f"[TTS] Output path: {output_path}")
         
         # Generate speech
-        generate_speech(text, output_path)
+        try:
+            generate_speech(text, output_path)
+        except Exception as gen_error:
+            print(f"[TTS] Generation error: {str(gen_error)}")
+            raise
         
-        # Verify file was created
+        # Verify file was created and has content
         if not os.path.exists(output_path):
-            return jsonify({"error": "Failed to generate audio"}), 500
+            print(f"[TTS] ERROR: File not created at {output_path}")
+            return jsonify({"error": "Failed to generate audio file"}), 500
+            
+        file_size = os.path.getsize(output_path)
+        print(f"[TTS] Audio file created successfully: {output_path} ({file_size} bytes)")
         
-        print(f"Audio generated successfully: {output_path}")
+        if file_size == 0:
+            print(f"[TTS] ERROR: Generated file is empty")
+            os.unlink(output_path)
+            return jsonify({"error": "Generated audio file is empty"}), 500
         
-        # Send the audio file and clean up after
-        response = send_file(
-            output_path,
+        # Read file into memory and delete immediately
+        with open(output_path, 'rb') as audio_file:
+            audio_data = audio_file.read()
+        
+        # Clean up temp file
+        try:
+            os.unlink(output_path)
+            print(f"[TTS] Cleaned up temp file: {output_path}")
+        except Exception as cleanup_error:
+            print(f"[TTS] Cleanup warning: {cleanup_error}")
+        
+        # Return audio data from memory
+        from io import BytesIO
+        return send_file(
+            BytesIO(audio_data),
             mimetype='audio/mpeg',
             as_attachment=False,
             download_name='speech.mp3'
         )
         
-        # Schedule cleanup
-        @response.call_on_close
-        def cleanup():
-            try:
-                if output_path and os.path.exists(output_path):
-                    os.unlink(output_path)
-            except:
-                pass
-        
-        return response
-        
     except Exception as e:
-        print(f"Error in TTS endpoint: {str(e)}")
+        print(f"[TTS] ERROR in endpoint: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"[TTS] Traceback: {traceback.format_exc()}")
+        
         # Cleanup on error
         if output_path and os.path.exists(output_path):
             try:
                 os.unlink(output_path)
+                print(f"[TTS] Cleaned up temp file after error: {output_path}")
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
+                
+        return jsonify({
+            'error': str(e),
+            'type': type(e).__name__
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health():
