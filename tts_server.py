@@ -9,6 +9,10 @@ import os
 import tempfile
 import edge_tts
 import asyncio
+import nest_asyncio
+
+# Allow nested event loops (fixes issues in production environments)
+nest_asyncio.apply()
 
 app = Flask(__name__)
 CORS(app)
@@ -19,16 +23,28 @@ VOICE = "en-IN-NeerjaNeural"  # Natural Indian English female voice
 
 async def generate_speech_async(text: str, output_path: str):
     """Generate speech using Edge TTS"""
-    communicate = edge_tts.Communicate(text, VOICE)
-    await communicate.save(output_path)
+    try:
+        communicate = edge_tts.Communicate(text, VOICE)
+        await communicate.save(output_path)
+        print(f"TTS generated successfully for text: {text[:30]}...")
+    except Exception as e:
+        print(f"Error in generate_speech_async: {str(e)}")
+        raise
 
 def generate_speech(text: str, output_path: str):
-    """Sync wrapper for generate_speech_async with proper event loop handling"""
+    """Sync wrapper for generate_speech_async"""
     try:
+        # Use asyncio.run which handles event loop creation/cleanup
+        asyncio.run(generate_speech_async(text, output_path))
+    except RuntimeError as e:
+        # Fallback for environments with existing event loops
+        print(f"RuntimeError, trying alternative approach: {e}")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(generate_speech_async(text, output_path))
-        loop.close()
+        try:
+            loop.run_until_complete(generate_speech_async(text, output_path))
+        finally:
+            loop.close()
     except Exception as e:
         print(f"Error generating speech: {e}")
         raise
