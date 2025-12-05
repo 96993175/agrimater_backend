@@ -1,12 +1,13 @@
 services:
   - type: web
-    name: agrimater-tts-server
+    name: agrimater-backend
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python tts_server.py
+    healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.10
       - key: PORT
         value: 5001
-    healthCheckPath: /health
+      - key: PYTHON_VERSION
+        value: 3.12.0

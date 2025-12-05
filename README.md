@@ -1,51 +1,51 @@
-# Agrimater TTS Backend Server
+# Agrimater TTS Backend
 
-This is a standalone Python Flask server that provides Text-to-Speech functionality using Microsoft Edge TTS.
+Flask-based Text-to-Speech server using Microsoft Edge TTS (Neural voices).
 
-## Deployment to Render
+## Features
+- Microsoft Neural TTS (en-IN-NeerjaNeural voice)
+- REST API endpoint for text-to-speech conversion
+- CORS enabled for frontend integration
+- Production-ready for Render deployment
 
-1. Create a new repository for this backend OR deploy from this folder directly
-2. Push to GitHub
-3. Go to https://render.com
-4. Click "New +" → "Web Service"
-5. Connect your repository
-6. Render will auto-detect `render.yaml`
-7. Click "Create Web Service"
+## Endpoints
+- `GET /` - Service information
+- `GET /health` - Health check
+- `POST /api/tts` - Text-to-Speech conversion
 
 ## Local Development
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run server
 python tts_server.py
 ```
 
-Server will run on `http://localhost:5001`
+Server runs on http://localhost:5001
+
+## Test TTS Endpoint
+
+```bash
+curl -X POST http://localhost:5001/api/tts \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Hello from Agrimater"}' \
+  --output test.mp3
+```
+
+## Deployment to Render
+
+1. Push this backend folder to GitHub
+2. Create new Web Service on Render
+3. Connect your GitHub repo
+4. Render auto-detects `render.yaml` configuration
+5. Service deploys automatically
+
+Health check: `https://your-app.onrender.com/health`
+
+## Dependencies
+- Flask 3.0.0 - Web framework
+- flask-cors 4.0.0 - CORS support
+- edge-tts 6.1.12 - Microsoft Neural TTS
+- nest-asyncio 1.6.0 - Event loop compatibility
 
 ## Environment Variables
-
-Configure these in Render Dashboard → Environment → Environment Variables:
-
-**Required:**
-- `GROQ_API_KEY` - Your Groq API key for AI chat
-- `GROQ_MODEL` - Model name (e.g., llama-3.1-8b-instant)
-- `MONGODB_URI` - MongoDB connection string
-- `SENDGRID_API_KEY` - SendGrid API key for emails
-- `SENDGRID_FROM` - Email sender address
-- `PORT` - Automatically set by Render (default: 5001)
-
-## API Endpoints
-
-- `GET /health` - Health check
-- `POST /api/tts` - Text-to-Speech conversion
-  - Body: `{"text": "Your text here"}`
-  - Returns: Audio file (MP3)
-
-## Tech Stack
-
-- Python 3.12
-- Flask 3.0.0
-- edge-tts 7.2.3
-- Microsoft Neural Voice: en-IN-NeerjaNeural
+- `PORT` - Server port (default: 5001)
