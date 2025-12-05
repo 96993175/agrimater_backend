@@ -10,6 +10,7 @@ import tempfile
 import edge_tts
 import asyncio
 import nest_asyncio
+import time
 
 # Allow nested event loops (fixes issues in production environments)
 nest_asyncio.apply()
@@ -75,13 +76,13 @@ def text_to_speech():
         
         if not text:
             return jsonify({'error': 'Text is required'}), 400
-        
         print(f"[TTS] Received request for text: {text[:50]}...")
         
         # Create temporary file for audio in /tmp (Render compatible)
         temp_dir = tempfile.gettempdir()
-        output_path = os.path.join(temp_dir, f"tts_{os.getpid()}_{int(asyncio.get_event_loop().time() * 1000)}.mp3")
+        output_path = os.path.join(temp_dir, f"tts_{os.getpid()}_{int(time.time() * 1000)}.mp3")
         
+        print(f"[TTS] Output path: {output_path}")
         print(f"[TTS] Output path: {output_path}")
         
         # Generate speech
