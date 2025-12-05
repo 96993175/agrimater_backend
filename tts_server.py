@@ -23,8 +23,15 @@ async def generate_speech_async(text: str, output_path: str):
     await communicate.save(output_path)
 
 def generate_speech(text: str, output_path: str):
-    """Sync wrapper for generate_speech_async"""
-    asyncio.run(generate_speech_async(text, output_path))
+    """Sync wrapper for generate_speech_async with proper event loop handling"""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(generate_speech_async(text, output_path))
+        loop.close()
+    except Exception as e:
+        print(f"Error generating speech: {e}")
+        raise
 
 @app.route('/', methods=['GET'])
 def index():
@@ -41,12 +48,15 @@ def index():
 
 @app.route('/api/tts', methods=['POST'])
 def text_to_speech():
+    output_path = None
     try:
         data = request.get_json()
         text = data.get('text', '')
         
         if not text:
             return jsonify({'error': 'Text is required'}), 400
+        
+        print(f"Generating TTS for: {text[:50]}...")  # Log for debugging
         
         # Create temporary file for audio
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
@@ -60,15 +70,35 @@ def text_to_speech():
         if not os.path.exists(output_path):
             return jsonify({"error": "Failed to generate audio"}), 500
         
-        # Send the audio file
-        return send_file(
+        print(f"Audio generated successfully: {output_path}")
+        
+        # Send the audio file and clean up after
+        response = send_file(
             output_path,
             mimetype='audio/mpeg',
             as_attachment=False,
             download_name='speech.mp3'
         )
         
+        # Schedule cleanup
+        @response.call_on_close
+        def cleanup():
+            try:
+                if output_path and os.path.exists(output_path):
+                    os.unlink(output_path)
+            except:
+                pass
+        
+        return response
+        
     except Exception as e:
+        print(f"Error in TTS endpoint: {str(e)}")
+        # Cleanup on error
+        if output_path and os.path.exists(output_path):
+            try:
+                os.unlink(output_path)
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
