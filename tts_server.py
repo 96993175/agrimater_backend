@@ -1,5 +1,5 @@
 """
-TTS API Server using OpenAI TTS
+TTS API Server with OpenAI TTS and pyttsx3 fallback
 Run this separately: python tts_server.py
 """
 
@@ -7,30 +7,56 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
 import tempfile
-from openai import OpenAI
 import time
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Try to import OpenAI, fallback to pyttsx3
+USE_OPENAI = False
+try:
+    from openai import OpenAI
+    if os.environ.get("OPENAI_API_KEY"):
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        USE_OPENAI = True
+        VOICE = "nova"  # OpenAI voice
+        print("[TTS] Using OpenAI TTS with 'nova' voice")
+except Exception as e:
+    print(f"[TTS] OpenAI not available: {e}")
 
-# OpenAI TTS voice options: alloy, echo, fable, onyx, nova, shimmer
-VOICE = "nova"  # Natural, friendly female voice
+if not USE_OPENAI:
+    import pyttsx3
+    VOICE = "female"
+    print("[TTS] Using pyttsx3 TTS with female voice")
 
 def generate_speech(text: str, output_path: str):
-    """Generate speech using OpenAI TTS"""
+    """Generate speech using OpenAI TTS or pyttsx3 fallback"""
     try:
-        response = client.audio.speech.create(
-            model="tts-1",  # or "tts-1-hd" for higher quality
-            voice=VOICE,
-            input=text
-        )
-        response.stream_to_file(output_path)
-        print(f"OpenAI TTS generated successfully for text: {text[:30]}...")
+        if USE_OPENAI:
+            # OpenAI TTS
+            response = client.audio.speech.create(
+                model="tts-1",
+                voice=VOICE,
+                input=text
+            )
+            response.stream_to_file(output_path)
+            print(f"[TTS] OpenAI generated successfully: {text[:30]}...")
+        else:
+            # pyttsx3 fallback
+            engine = pyttsx3.init()
+            # Set female voice (if available)
+            voices = engine.getProperty('voices')
+            for voice in voices:
+                if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
+                    engine.setProperty('voice', voice.id)
+                    break
+            engine.setProperty('rate', 150)  # Speed
+            engine.setProperty('volume', 1.0)  # Volume
+            engine.save_to_file(text, output_path)
+            engine.runAndWait()
+            print(f"[TTS] pyttsx3 generated successfully: {text[:30]}...")
     except Exception as e:
-        print(f"Error in generate_speech: {str(e)}")
+        print(f"[TTS] Error in generate_speech: {str(e)}")
         raise
 
 @app.route('/', methods=['GET'])
@@ -39,7 +65,7 @@ def index():
     return jsonify({
         'service': 'Agrimater TTS Server',
         'status': 'running',
-        'provider': 'OpenAI',
+        'provider': 'OpenAI' if USE_OPENAI else 'pyttsx3',
         'voice': VOICE,
         'endpoints': {
             'health': '/health',
@@ -132,7 +158,7 @@ def health():
     return jsonify({
         'status': 'healthy',
         'service': 'TTS Server',
-        'provider': 'OpenAI',
+        'provider': 'OpenAI' if USE_OPENAI else 'pyttsx3',
         'voice': VOICE
     })
 

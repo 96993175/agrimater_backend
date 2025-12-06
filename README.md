@@ -1,9 +1,10 @@
 # Agrimater TTS Backend
 
-Flask-based Text-to-Speech server using OpenAI TTS.
+Flask-based Text-to-Speech server with OpenAI TTS and pyttsx3 fallback.
 
 ## Features
-- OpenAI TTS with "nova" voice (natural, friendly female voice)
+- Primary: OpenAI TTS with "nova" voice (natural, friendly female voice)
+- Fallback: pyttsx3 with female voice (if OpenAI API key not available)
 - REST API endpoint for text-to-speech conversion
 - CORS enabled for frontend integration
 - Production-ready for Render deployment
@@ -46,8 +47,9 @@ Health check: `https://your-app.onrender.com/health`
 ## Dependencies
 - Flask 3.0.0 - Web framework
 - flask-cors 4.0.0 - CORS support
-- openai 1.58.1 - OpenAI TTS API
+- openai 1.58.1 - OpenAI TTS API (primary)
+- pyttsx3 2.98 - Offline TTS (fallback)
 
 ## Environment Variables
 - `PORT` - Server port (default: 5001)
-- `OPENAI_API_KEY` - Your OpenAI API key (required)
+- `OPENAI_API_KEY` - Your OpenAI API key (optional, uses pyttsx3 if not provided)
