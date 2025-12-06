@@ -1,5 +1,5 @@
 """
-TTS API Server using Edge TTS (Microsoft Neural Voices)
+TTS API Server using OpenAI TTS
 Run this separately: python tts_server.py
 """
 
@@ -7,35 +7,31 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
 import tempfile
-import edge_tts
-import asyncio
+from openai import OpenAI
 import time
 
 app = Flask(__name__)
 CORS(app)
 
-# Use Microsoft's multilingual neural voice
-# en-US-AvaMultilingualNeural - Natural multilingual female voice (supports multiple languages)
-VOICE = "en-US-AvaMultilingualNeural"
+# Initialize OpenAI client
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-async def generate_speech_async(text: str, output_path: str):
-    """Generate speech using Edge TTS"""
-    try:
-        communicate = edge_tts.Communicate(text, VOICE)
-        await communicate.save(output_path)
-        print(f"TTS generated successfully for text: {text[:30]}...")
-    except Exception as e:
-        print(f"Error in generate_speech_async: {str(e)}")
-        raise
+# OpenAI TTS voice options: alloy, echo, fable, onyx, nova, shimmer
+VOICE = "nova"  # Natural, friendly female voice
 
 def generate_speech(text: str, output_path: str):
-    """Sync wrapper for generate_speech_async - always creates new event loop"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    """Generate speech using OpenAI TTS"""
     try:
-        loop.run_until_complete(generate_speech_async(text, output_path))
-    finally:
-        loop.close()
+        response = client.audio.speech.create(
+            model="tts-1",  # or "tts-1-hd" for higher quality
+            voice=VOICE,
+            input=text
+        )
+        response.stream_to_file(output_path)
+        print(f"OpenAI TTS generated successfully for text: {text[:30]}...")
+    except Exception as e:
+        print(f"Error in generate_speech: {str(e)}")
+        raise
 
 @app.route('/', methods=['GET'])
 def index():
@@ -43,6 +39,7 @@ def index():
     return jsonify({
         'service': 'Agrimater TTS Server',
         'status': 'running',
+        'provider': 'OpenAI',
         'voice': VOICE,
         'endpoints': {
             'health': '/health',
@@ -135,7 +132,7 @@ def health():
     return jsonify({
         'status': 'healthy',
         'service': 'TTS Server',
-        'tts': 'edge-tts',
+        'provider': 'OpenAI',
         'voice': VOICE
     })
 
