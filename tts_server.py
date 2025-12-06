@@ -1,5 +1,5 @@
 """
-TTS API Server with OpenAI TTS and pyttsx3 fallback
+TTS API Server with OpenAI TTS (primary) and FishAudio TTS (fallback)
 Run this separately: python tts_server.py
 """
 
@@ -7,63 +7,74 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
 import tempfile
+from openai import OpenAI
 import time
+import requests
 
 app = Flask(__name__)
 CORS(app)
 
-# Try to import OpenAI, fallback to pyttsx3
-USE_OPENAI = False
-try:
-    from openai import OpenAI
-    if os.environ.get("OPENAI_API_KEY"):
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        USE_OPENAI = True
-        VOICE = "nova"  # OpenAI voice
-        print("[TTS] Using OpenAI TTS with 'nova' voice")
-except Exception as e:
-    print(f"[TTS] OpenAI not available: {e}")
+# Initialize OpenAI client
+openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-if not USE_OPENAI:
-    import pyttsx3
-    VOICE = "female"
-    print("[TTS] Using pyttsx3 TTS with female voice")
+# Voice configuration
+OPENAI_VOICE = "nova"  # Natural, friendly female voice
+FISH_VOICE = "fishaudio_v1_female"  # FishAudio female voice
+
+def generate_speech_openai(text: str, output_path: str):
+    """Generate speech using OpenAI TTS"""
+    try:
+        response = openai_client.audio.speech.create(
+            model="tts-1",
+            voice=OPENAI_VOICE,
+            input=text
+        )
+        response.stream_to_file(output_path)
+        print(f"[OpenAI TTS] Generated successfully for text: {text[:30]}...")
+        return True
+    except Exception as e:
+        print(f"[OpenAI TTS] Error: {str(e)}")
+        return False
+
+def generate_speech_fishaudio(text: str, output_path: str):
+    """Generate speech using FishAudio TTS as fallback"""
+    try:
+        # FishAudio API endpoint (free, no API key required)
+        url = "https://api.fish.audio/v1/tts"
+        
+        payload = {
+            "text": text,
+            "voice": FISH_VOICE,
+            "format": "mp3"
+        }
+        
+        response = requests.post(url, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            print(f"[FishAudio TTS] Generated successfully for text: {text[:30]}...")
+            return True
+        else:
+            print(f"[FishAudio TTS] Error: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print(f"[FishAudio TTS] Error: {str(e)}")
+        return False
 
 def generate_speech(text: str, output_path: str):
-    """Generate speech using OpenAI TTS with pyttsx3 fallback"""
-    try:
-        if USE_OPENAI:
-            # Try OpenAI TTS first
-            try:
-                response = client.audio.speech.create(
-                    model="tts-1",
-                    voice=VOICE,
-                    input=text
-                )
-                response.stream_to_file(output_path)
-                print(f"[TTS] OpenAI generated successfully: {text[:30]}...")
-                return
-            except Exception as openai_error:
-                # If OpenAI fails (no balance, rate limit, etc), fallback to pyttsx3
-                print(f"[TTS] OpenAI failed ({str(openai_error)}), switching to pyttsx3 fallback...")
-        
-        # pyttsx3 fallback
-        import pyttsx3
-        engine = pyttsx3.init()
-        # Set female voice (if available)
-        voices = engine.getProperty('voices')
-        for voice in voices:
-            if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
-                engine.setProperty('voice', voice.id)
-                break
-        engine.setProperty('rate', 150)  # Speed
-        engine.setProperty('volume', 1.0)  # Volume
-        engine.save_to_file(text, output_path)
-        engine.runAndWait()
-        print(f"[TTS] pyttsx3 generated successfully: {text[:30]}...")
-    except Exception as e:
-        print(f"[TTS] Error in generate_speech: {str(e)}")
-        raise
+    """Generate speech with automatic fallback"""
+    # Try OpenAI first
+    if generate_speech_openai(text, output_path):
+        return
+    
+    # Fallback to FishAudio if OpenAI fails
+    print("[TTS] OpenAI failed, trying FishAudio fallback...")
+    if generate_speech_fishaudio(text, output_path):
+        return
+    
+    # Both failed
+    raise Exception("All TTS providers failed")
 
 @app.route('/', methods=['GET'])
 def index():
@@ -71,8 +82,9 @@ def index():
     return jsonify({
         'service': 'Agrimater TTS Server',
         'status': 'running',
-        'provider': 'OpenAI' if USE_OPENAI else 'pyttsx3',
-        'voice': VOICE,
+        'primary_provider': 'OpenAI',
+        'fallback_provider': 'FishAudio',
+        'voice': OPENAI_VOICE,
         'endpoints': {
             'health': '/health',
             'tts': '/api/tts (POST)'
@@ -164,8 +176,9 @@ def health():
     return jsonify({
         'status': 'healthy',
         'service': 'TTS Server',
-        'provider': 'OpenAI' if USE_OPENAI else 'pyttsx3',
-        'voice': VOICE
+        'primary_provider': 'OpenAI',
+        'fallback_provider': 'FishAudio',
+        'voice': OPENAI_VOICE
     })
 
 if __name__ == '__main__':

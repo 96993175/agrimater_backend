@@ -1,10 +1,12 @@
 # Agrimater TTS Backend
 
-Flask-based Text-to-Speech server with OpenAI TTS and pyttsx3 fallback.
+Flask-based Text-to-Speech server with automatic fallback:
+- **Primary**: OpenAI TTS (nova voice)
+- **Fallback**: FishAudio TTS (free, female voice)
 
 ## Features
-- Primary: OpenAI TTS with "nova" voice (natural, friendly female voice)
-- Fallback: pyttsx3 with female voice (if OpenAI API key not available)
+- OpenAI TTS with "nova" voice (natural, friendly female voice)
+- Automatic fallback to FishAudio if OpenAI fails (no balance, rate limit, etc.)
 - REST API endpoint for text-to-speech conversion
 - CORS enabled for frontend integration
 - Production-ready for Render deployment
@@ -40,7 +42,7 @@ curl -X POST http://localhost:5001/api/tts \
 3. Connect your GitHub repo
 4. Render auto-detects `render.yaml` configuration
 5. Service deploys automatically
-6. Add `OPENAI_API_KEY` environment variable in Render dashboard
+6. Add `OPENAI_API_KEY` environment variable in Render dashboard (optional - will use FishAudio if not set)
 
 Health check: `https://your-app.onrender.com/health`
 
@@ -48,8 +50,8 @@ Health check: `https://your-app.onrender.com/health`
 - Flask 3.0.0 - Web framework
 - flask-cors 4.0.0 - CORS support
 - openai 1.58.1 - OpenAI TTS API (primary)
-- pyttsx3 2.98 - Offline TTS (fallback)
+- requests 2.32.3 - For FishAudio API (fallback)
 
 ## Environment Variables
 - `PORT` - Server port (default: 5001)
-- `OPENAI_API_KEY` - Your OpenAI API key (optional, uses pyttsx3 if not provided)
+- `OPENAI_API_KEY` - Your OpenAI API key (optional, will fallback to FishAudio if not set)
