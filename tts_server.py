@@ -1,5 +1,5 @@
 """
-TTS API Server with OpenAI TTS (primary) and FishAudio TTS (fallback)
+TTS API Server using OpenAI TTS
 Run this separately: python tts_server.py
 """
 
@@ -9,72 +9,29 @@ import os
 import tempfile
 from openai import OpenAI
 import time
-import requests
 
 app = Flask(__name__)
 CORS(app)
 
 # Initialize OpenAI client
-openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# Voice configuration
-OPENAI_VOICE = "nova"  # Natural, friendly female voice
-FISH_VOICE = "fishaudio_v1_female"  # FishAudio female voice
+# OpenAI TTS voice options: alloy, echo, fable, onyx, nova, shimmer
+VOICE = "nova"  # Natural, friendly female voice
 
-def generate_speech_openai(text: str, output_path: str):
+def generate_speech(text: str, output_path: str):
     """Generate speech using OpenAI TTS"""
     try:
-        response = openai_client.audio.speech.create(
-            model="tts-1",
-            voice=OPENAI_VOICE,
+        response = client.audio.speech.create(
+            model="tts-1",  # or "tts-1-hd" for higher quality
+            voice=VOICE,
             input=text
         )
         response.stream_to_file(output_path)
-        print(f"[OpenAI TTS] Generated successfully for text: {text[:30]}...")
-        return True
+        print(f"OpenAI TTS generated successfully for text: {text[:30]}...")
     except Exception as e:
-        print(f"[OpenAI TTS] Error: {str(e)}")
-        return False
-
-def generate_speech_fishaudio(text: str, output_path: str):
-    """Generate speech using FishAudio TTS as fallback"""
-    try:
-        # FishAudio API endpoint (free, no API key required)
-        url = "https://api.fish.audio/v1/tts"
-        
-        payload = {
-            "text": text,
-            "voice": FISH_VOICE,
-            "format": "mp3"
-        }
-        
-        response = requests.post(url, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            with open(output_path, 'wb') as f:
-                f.write(response.content)
-            print(f"[FishAudio TTS] Generated successfully for text: {text[:30]}...")
-            return True
-        else:
-            print(f"[FishAudio TTS] Error: {response.status_code} - {response.text}")
-            return False
-    except Exception as e:
-        print(f"[FishAudio TTS] Error: {str(e)}")
-        return False
-
-def generate_speech(text: str, output_path: str):
-    """Generate speech with automatic fallback"""
-    # Try OpenAI first
-    if generate_speech_openai(text, output_path):
-        return
-    
-    # Fallback to FishAudio if OpenAI fails
-    print("[TTS] OpenAI failed, trying FishAudio fallback...")
-    if generate_speech_fishaudio(text, output_path):
-        return
-    
-    # Both failed
-    raise Exception("All TTS providers failed")
+        print(f"Error in generate_speech: {str(e)}")
+        raise
 
 @app.route('/', methods=['GET'])
 def index():
@@ -82,9 +39,8 @@ def index():
     return jsonify({
         'service': 'Agrimater TTS Server',
         'status': 'running',
-        'primary_provider': 'OpenAI',
-        'fallback_provider': 'FishAudio',
-        'voice': OPENAI_VOICE,
+        'provider': 'OpenAI',
+        'voice': VOICE,
         'endpoints': {
             'health': '/health',
             'tts': '/api/tts (POST)'
@@ -176,16 +132,14 @@ def health():
     return jsonify({
         'status': 'healthy',
         'service': 'TTS Server',
-        'primary_provider': 'OpenAI',
-        'fallback_provider': 'FishAudio',
-        'voice': OPENAI_VOICE
+        'provider': 'OpenAI',
+        'voice': VOICE
     })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     print("🎙️ TTS Server starting...")
     print(f"📍 Running on http://localhost:{port}")
-    print(f"🔊 Primary: OpenAI TTS (voice: {OPENAI_VOICE})")
-    print(f"🔄 Fallback: FishAudio TTS (voice: {FISH_VOICE})")
-    print("💡 Automatic failover for reliability")
+    print(f"🔊 Using Edge TTS with voice: {VOICE}")
+    print("💡 Ultra-realistic Microsoft Neural Voice")
     app.run(host='0.0.0.0', port=port, debug=False)
