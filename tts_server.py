@@ -30,31 +30,37 @@ if not USE_OPENAI:
     print("[TTS] Using pyttsx3 TTS with female voice")
 
 def generate_speech(text: str, output_path: str):
-    """Generate speech using OpenAI TTS or pyttsx3 fallback"""
+    """Generate speech using OpenAI TTS with pyttsx3 fallback"""
     try:
         if USE_OPENAI:
-            # OpenAI TTS
-            response = client.audio.speech.create(
-                model="tts-1",
-                voice=VOICE,
-                input=text
-            )
-            response.stream_to_file(output_path)
-            print(f"[TTS] OpenAI generated successfully: {text[:30]}...")
-        else:
-            # pyttsx3 fallback
-            engine = pyttsx3.init()
-            # Set female voice (if available)
-            voices = engine.getProperty('voices')
-            for voice in voices:
-                if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
-                    engine.setProperty('voice', voice.id)
-                    break
-            engine.setProperty('rate', 150)  # Speed
-            engine.setProperty('volume', 1.0)  # Volume
-            engine.save_to_file(text, output_path)
-            engine.runAndWait()
-            print(f"[TTS] pyttsx3 generated successfully: {text[:30]}...")
+            # Try OpenAI TTS first
+            try:
+                response = client.audio.speech.create(
+                    model="tts-1",
+                    voice=VOICE,
+                    input=text
+                )
+                response.stream_to_file(output_path)
+                print(f"[TTS] OpenAI generated successfully: {text[:30]}...")
+                return
+            except Exception as openai_error:
+                # If OpenAI fails (no balance, rate limit, etc), fallback to pyttsx3
+                print(f"[TTS] OpenAI failed ({str(openai_error)}), switching to pyttsx3 fallback...")
+        
+        # pyttsx3 fallback
+        import pyttsx3
+        engine = pyttsx3.init()
+        # Set female voice (if available)
+        voices = engine.getProperty('voices')
+        for voice in voices:
+            if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
+                engine.setProperty('voice', voice.id)
+                break
+        engine.setProperty('rate', 150)  # Speed
+        engine.setProperty('volume', 1.0)  # Volume
+        engine.save_to_file(text, output_path)
+        engine.runAndWait()
+        print(f"[TTS] pyttsx3 generated successfully: {text[:30]}...")
     except Exception as e:
         print(f"[TTS] Error in generate_speech: {str(e)}")
         raise
