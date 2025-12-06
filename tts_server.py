@@ -14,9 +14,9 @@ import time
 app = Flask(__name__)
 CORS(app)
 
-# Use Microsoft's en-IN (Indian English) neural voice for "Namaskar" greeting
-# Options: en-IN-NeerjaNeural (Female), en-IN-PrabhatNeural (Male)
-VOICE = "en-IN-NeerjaNeural"  # Natural Indian English female voice
+# Use Microsoft's multilingual neural voice
+# en-US-AvaMultilingualNeural - Natural multilingual female voice (supports multiple languages)
+VOICE = "en-US-AvaMultilingualNeural"
 
 async def generate_speech_async(text: str, output_path: str):
     """Generate speech using Edge TTS"""
